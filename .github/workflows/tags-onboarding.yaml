@@ -38,7 +38,7 @@ on:
 #     working-directory: ./node-ssm
 
 jobs:
-  invoke_api:
+  update_tags:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3

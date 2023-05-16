@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       sid:
-        required: true,
+        required: true
         description: SID
       name:
         required: true

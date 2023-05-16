@@ -6,6 +6,9 @@ permissions:
 on:
   workflow_dispatch:
     inputs:
+      sid:
+        required: true,
+        description: SID
       name:
         required: true
         description: Name
@@ -63,6 +66,8 @@ jobs:
       - name: Run python script to add tags
         run: python updater.py
         env:
+          BUCKET: "sid-tag-mapping-bucket"
+          SID: ${{inputs.sid}}
           NAME: ${{ inputs.name }}
           APP_NAME: ${{ inputs.app_name }}
           BUSINESS_UNIT: ${{ inputs.business_unit }}

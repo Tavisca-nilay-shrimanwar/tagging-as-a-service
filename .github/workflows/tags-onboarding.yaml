@@ -1,0 +1,73 @@
+name: Tagging user onboarding
+permissions:
+  id-token: write
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        required: true
+        description: Name
+      app_name:
+        required: true
+        description: AppName
+      business_unit:
+        required: true
+        description: BusinessUnit
+      product:
+        required: true
+        description: Product
+      backup:
+        type: choice
+        default: No
+        description: Backup
+        options: 
+        - "No"
+        - "Yes"
+      environment:
+        description: Environment
+      infra_owner:
+        description: InfraOwner
+      product_owner:
+        description: ProductOwner
+
+      
+# defaults:
+#   run:
+#     working-directory: ./node-ssm
+
+jobs:
+  invoke_api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install python packages
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::928814396842:role/github-actions-restore-poc-role
+          role-duration-seconds: 900
+          aws-region: us-east-1
+      
+      - name: Run python script to add tags
+        run: python updater.py
+        env:
+          NAME: ${{ inputs.name }}
+          APP_NAME: ${{ inputs.app_name }}
+          BUSINESS_UNIT: ${{ inputs.business_unit }}
+          PRODUCT: ${{ inputs.product }}
+          BACKUP: ${{ inputs.backup }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          INFRA_OWNER: ${{ inputs.infra_owner }}
+          PRODUCT_OWNER: ${{ inputs.product_owner }}

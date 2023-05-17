@@ -24,7 +24,10 @@ def is_sid_valid():
     if re.fullmatch(pattern, sid):
         return True
     else:
-        print("Please enter valid SID. For example, the SID should be in the format: 'A123456'")
+        print("""Please enter valid SID.
+        For example, the SID should be in the format: A123456.
+        The first char is capital letter followed by 6 digits.
+        """)
         sys.exit(1)
 
 def update_tag():

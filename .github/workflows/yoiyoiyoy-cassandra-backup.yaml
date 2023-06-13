@@ -1,0 +1,98 @@
+name: yoiyoiyoy cassandra backup workflow 
+
+on:
+  workflow_dispatch:
+    inputs:
+      key_spaces_names:
+        type: string
+        description: 'Cassandra keyspaces names'
+        required: true
+        default: "test"
+      environment:
+        type: choice
+        description: 'Choose from below environments'     
+        required: true
+        default: "poc"
+        options:
+        - poc
+        - qa
+        - stage
+        - prod
+      choose_workflow:
+        type: choice
+        description: 'Choose from below workflows'     
+        required: true
+        default: "Backup"
+        options:
+        - Backup  
+        - List-Backup
+
+  schedule:
+   - cron:  '0 4 * * *'
+
+env:
+  SSL_CERT_DIR: "/etc/pki/tls/certs"
+  ClusterNameForBackup: "yoiyoiyoy"
+  DbType: "cassandra"
+  aws_account: "CX.TRAVEL.POC.APPDR"
+  RegionName: "us-east-1"
+  BackupRetentionPeriod: "30"
+
+jobs:
+
+    run-backup-ondemand:
+        name: backup-ondemand
+        if: github.event_name == 'workflow_dispatch' && inputs.choose_workflow == 'Backup'
+        env:
+          CassandraKeySpacesNames: ${{inputs.key_spaces_names}}
+          Environment: ${{ inputs.environment }}
+        runs-on:
+          - CX.TRAVEL.POC.APPDR
+        steps:
+          - name: Checkout code
+            uses: actions/checkout@v3
+          - name: Setup Python
+            uses: actions/setup-python@v4
+            with:
+              python-version: 'pypy3.9'
+          - run: pip3 install -r requirements.txt
+          - name: Backup Cassandra
+            working-directory: ./Opscenter/src/backup
+            run: python run.py
+
+    run-backup-scheduled:
+        name: backup-scheduled
+        if: github.event_name != 'workflow_dispatch'
+        runs-on:
+          - CX.TRAVEL.POC.APPDR
+        steps:
+          - name: Checkout code
+            uses: actions/checkout@v3
+          - name: Setup Python
+            uses: actions/setup-python@v4
+            with:
+                python-version: 'pypy3.9'
+          - run: pip3 install -r requirements.txt
+          - name: Backup Cassandra
+            working-directory: ./Opscenter/src/backup
+            run: python run.py
+
+    list-backup:
+        name: listbackup
+        if: github.event_name == 'workflow_dispatch' && inputs.choose_workflow == 'List-Backup'
+        runs-on:
+          - CX.TRAVEL.POC.APPDR
+        steps:
+          - name: Checkout code
+            uses: actions/checkout@v3
+
+          - name: Setup Python
+            uses: actions/setup-python@v4
+            with:
+              python-version: 'pypy3.9'
+          
+          - run: pip3 install -r requirements.txt
+              
+          - name: List Backup
+            working-directory: ./Opscenter/src/list
+            run: python run.py

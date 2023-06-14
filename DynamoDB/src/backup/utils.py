@@ -27,7 +27,7 @@ def create_metadata_before_backup(table_name, region):
     return metadata
 
 
-def write_metadata_to_s3(metadata, table_name, region, s3_bucket_name, location, logger, emailer):
+def write_metadata_to_s3(metadata, table_name, region, s3_bucket_name, location, logger, teams_messenger):
     """
     table_name: Name of DynamoDB Table which we are going to backup
     backup_name: Name of Backup that will be created
@@ -59,19 +59,35 @@ def write_metadata_to_s3(metadata, table_name, region, s3_bucket_name, location,
             Key=location
         )
 
-        success_message = f"Metadata Created Successfully on s3 https://{s3_bucket_name}.s3.amazonaws.com/{location}"
+        success_title = "DynamoDB Metadata Created Successfully"
+        success_message = f"Metadata Created Successfully for table {table_name} on s3 https://{s3_bucket_name}.s3.amazonaws.com/{location}"
+        
+        # Send Logs to CW
         logger.info(success_message)
-        return {
-            "status": True,
-            "message": success_message
-        }
+
+        # Send Teams Message
+        teams_messenger.send_message(success_title, success_message)
     
     except s3_client.exceptions.NoSuchBucket:
-        error_message = "Bucket not Found!"
+        error_title = "DynampDB Metadata creation failed"
+        error_message = "Metadata creation failed for table {table_name}. Bucket with name: {s3_bucket_name} not Found!"
+        
+        logger.error(error_message)
+        sys.exit(1)
+
+        # Send Teams Message
+        teams_messenger.send_message(error_title, error_message)
+
+    except Exception as e:
+        ex_type, ex, tb = sys.exc_info()
+
+        error_title = "DynampDB Metadata creation failed"
+        error_message = f"Metadata creation failed for table {table_name}. {ex_type}: {ex}"
+        
+        # Logging Failure
         logger.error(error_message)
 
-        emailer.send_failure_email(
-                    subject="Backup Failed!",
-                    content=f"Backup of DynamoDB table {table_name} failed\nReason: {error_message}"
-                )
+        # Sending Teams Message
+        teams_messenger.send_message(title=error_title, message=error_message)
+
         sys.exit(1)

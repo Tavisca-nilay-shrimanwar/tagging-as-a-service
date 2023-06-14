@@ -1,5 +1,7 @@
 import boto3
 import json
+import requests
+from datetime import datetime
 
 def get_parameter_from_ssm(parameter_name, ssm_client, with_decryption=False):
   """
@@ -51,7 +53,12 @@ def get_item_count(table_name, dynamodb_client):
   return count
 
 def read_json_from_s3(metadata_bucket_name, metadata_file_key, s3_client):
-  existing_metadata_file = s3_client.get_object(Bucket=metadata_bucket_name, Key=metadata_file_key)
-  existing_metadata = json.loads(existing_metadata_file["Body"].read().decode())
+  json_file = s3_client.get_object(Bucket=metadata_bucket_name, Key=metadata_file_key)
+  parsed_data = json.loads(json_file["Body"].read().decode())
   
-  return existing_metadata
+  return parsed_data
+
+def get_region():
+  r = requests.get("http://169.254.169.254/latest/dynamic/instance-identity/document")
+  response_json = r.json()
+  return response_json.get('region')

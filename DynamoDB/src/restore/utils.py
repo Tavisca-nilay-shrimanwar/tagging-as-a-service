@@ -3,20 +3,20 @@ import boto3
 from datetime import datetime
 from context import common
 
-def fetch_and_validate_metadata(metadata_bucket_name, metadata_file_key, source_table_name, backup_arn, target_table_name, dynamodb_client, s3_client, logger, emailer):
+def fetch_and_validate_metadata(metadata_bucket_name, metadata_file_key, source_table_name, backup_arn, target_table_name, dynamodb_client, s3_client, logger, emailer, teams_messenger):
     
     existing_metadata = common.read_json_from_s3(metadata_bucket_name, metadata_file_key, s3_client)
     
     # If the key for operating table exists in dictionary, extend that dictionary
     if source_table_name in existing_metadata.keys() and len(existing_metadata[source_table_name]) > 0:
         metadata_dict_for_arn = next(item for item in existing_metadata[source_table_name] if item["backup_arn"] == backup_arn)
-        validate_metadata(target_table_name, dynamodb_client, metadata_dict_for_arn, logger, emailer)
+        validate_metadata(target_table_name, dynamodb_client, metadata_dict_for_arn, logger, emailer, teams_messenger)
     
     else:
         print("No Existing Metadata found for selected Table")
 
 
-def validate_metadata(target_table_name, dynamodb_client, metadata_dict, logger, emailer):
+def validate_metadata(target_table_name, dynamodb_client, metadata_dict, logger, emailer, teams_messenger):
     loop_count = 0
     while True:
         #restored_table = dynamodb_client.describe_table(TableName=target_table_name)['Table']
@@ -40,15 +40,25 @@ def validate_metadata(target_table_name, dynamodb_client, metadata_dict, logger,
     item_count_in_restored_table = common.get_item_count(target_table_name, dynamodb_client)  
     
     if metadata_dict["item_count"] == item_count_in_restored_table and metadata_dict["gsi_count"] == gsi_count_in_restored_table and metadata_dict["lsi_count"] == lsi_count_in_restored_table:
-        success_message = "Metadata Validation Succeded"
+        success_title = "DynamoDB Table Created and Metadata Validation Succeded"
+        success_message = f"Metadata Validation of DynamoDB table: {target_table_name} succeed"
+        
+        # Logging Successful Metadata Validation
         logger.info(success_message)
+        
+        # Sending Teams Message for Successful Metadata Validation
+        teams_messenger.send_message(title=success_title, message=success_message)
+
+        # Sending Email for Successful Metadata Validation
         emailer.send_success_email(
-                    subject="Restore Metadata Validation Succeeded!",
-                    content=f"Metadata Validation of DynamoDB table: {target_table_name} succeed"
+                    subject=success_title,
+                    content=success_message
                 )
 
     else:
-        logger.error("Metadata Validation Failed!")
+        # Logging Failed Metadata Validation
+        failure_title = "DynamoDB table created but Metadata Validation Failed!"
+        logger.error(failure_title)
 
         if metadata_dict["item_count"] != item_count_in_restored_table:
             error_message = f"Item Count in Backup: {metadata_dict['item_count']}; Item count in Restored Table: {item_count_in_restored_table}"
@@ -60,13 +70,17 @@ def validate_metadata(target_table_name, dynamodb_client, metadata_dict, logger,
             error_message = f"Item Count in Backup: {metadata_dict['lsi_count']}; Item count in Restored Table: {lsi_count_in_restored_table}"
             logger.error(error_message)
 
+        # Sending Teams Message for Successful Restore
+        teams_messenger.send_message(failure_title, f"Restore Validation of DynamoDB table: {target_table_name} failed from latest ARN\nReason: {error_message}")
+
+        # Sending Email for Failed Metadata Validation
         emailer.send_failure_email(
-                    subject="Restore Metadata Validation Failed!",
+                    subject=failure_title,
                     content=f"Restore Validation of DynamoDB table: {target_table_name} failed from latest ARN\nReason: {error_message}"
                 )
 
 
-def restore_from_latest_arn(dynamodb_client, region, logger, emailer, is_auto=False):
+def restore_from_latest_arn(dynamodb_client, region, logger, emailer, teams_messenger, is_auto=False):
     s3_client = boto3.client('s3', region)
     ssm_client = boto3.client('ssm', region)
 
@@ -95,31 +109,56 @@ def restore_from_latest_arn(dynamodb_client, region, logger, emailer, is_auto=Fa
                                         BackupArn=latest_backup_arn
                                     )
                 
-                logger.info(f"you have restored the dynamodb table from the specified backup, Name of the restored table is: {restored_table['TableDescription']['TableName']}")
+                success_title = "DynamoDB Restore operation Started"
+                success_message = f"DynamoDB Restore process started from latest backup ARN: {latest_backup_arn}, Name of the restored table is: {restored_table['TableDescription']['TableName']}"
+                
+                # Logging Successful Restore
+                logger.info(success_message)
 
+                # Sending Teams Message for Successful Restore
+                teams_messenger.send_message(title=success_title, message=success_message)
+
+                # Sending Email for Successful Restore
                 emailer.send_success_email(
-                    subject="Restore Succeeded!",
-                    content=f"New Restore DynamoDB table created named {target_table_name} from latest ARN"
+                    subject=success_title,
+                    content=success_message
                 )
 
                 # Validation
-                validate_metadata(target_table_name, dynamodb_client, latest_backup_metadata_dict, logger, emailer)
+                validate_metadata(target_table_name, dynamodb_client, latest_backup_metadata_dict, logger, emailer, teams_messenger)
 
             else:
-                error_message =  "No Existing Metadata found for selected Table"
-                logger.error(error_message)
+                failure_title =  "DynamoDB Restore Operation Failed"
+                failure_message = f"Restore of DynamoDB table failed from latest ARN\nReason: {failure_message}"
+        
+                # Logging Failed Restore
+                logger.error(failure_message)
+                
+                # Sending Teams Message for Failed Restore
+                teams_messenger.send_message(title=failure_title, message=failure_message)
+
+                # Sending Email for Failed Restore
                 emailer.send_failure_email(
-                    subject="Restore Failed!",
-                    content=f"Restore of DynamoDB table failed from latest ARN\nReason: {error_message}"
+                    subject=failure_title,
+                    content=failure_message
                 )
                 sys.exit(1)
     else:
-        error_message = "No Metadata found"
-        logger.error(error_message)
+        failure_title = "DynamoDB Restore Operation Failed"
+        failure_message = "No Metadata found"
+
+        # Logging Failed Restore
+        logger.error(failure_message)
+
+        # Sending Teams Message for Failed Restore
+        teams_messenger.send_message(title=failure_title, message=failure_message)
+
+        # Sending Email for Failed Restore
         emailer.send_failure_email(
                     subject="Restore Failed!",
-                    content=f"Restore of DynamoDB table failed from latest ARN\nReason: {error_message}"
+                    content=f"Restore of DynamoDB table failed from latest ARN\nReason: {failure_message}"
                 )
+        
         sys.exit(1)
 
 
@@ -163,3 +202,4 @@ def write_retention_config(table_name, rentntion_period_days, ssm_client, s3_cli
         failure_message = f"{ex_type}: {ex}"
         logger.error(failure_message)
         traceback.print_tb(tb)
+        sys.exit(1)

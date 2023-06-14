@@ -27,47 +27,59 @@ class Emailer():
 
     def send_success_email(self, **opts):
         content = self.get_success_template(opts["content"])
-          
-        return self.client.send_email(
-            Destination={
-                "ToAddresses": self.receiver,
-            },
-            Message={
-                "Body": {
-                        "Html": {
+        
+        try:
+            return self.client.send_email(
+                Destination={
+                    "ToAddresses": self.receiver,
+                },
+                Message={
+                    "Body": {
+                            "Html": {
+                                "Charset": self.CHARSET,
+                                "Data": content,
+                            }
+                    },
+                    "Subject": {
                             "Charset": self.CHARSET,
-                            "Data": content,
-                        }
+                            "Data": opts["subject"],
+                    },
                 },
-                "Subject": {
-                        "Charset": self.CHARSET,
-                        "Data": opts["subject"],
-                },
-            },
-            Source=self.sender
-        )
+                Source=self.sender
+            )
+
+        except self.client.exceptions.MessageRejected as e:
+            print(f"Email is not Verified. Details: {e}")
+            return None
+
 
     def send_failure_email(self, **opts):
         content = self.get_failure_template(opts["content"])
         
-        return self.client.send_email(
-            Destination={
-                "ToAddresses": self.receiver,
-            },
-            Message={
-                "Body": {
-                        "Html": {
+        try:
+            return self.client.send_email(
+                Destination={
+                    "ToAddresses": self.receiver,
+                },
+                Message={
+                    "Body": {
+                            "Html": {
+                                "Charset": self.CHARSET,
+                                "Data": content,
+                            }
+                    },
+                    "Subject": {
                             "Charset": self.CHARSET,
-                            "Data": content,
-                        }
+                            "Data": opts["subject"],
+                    },
                 },
-                "Subject": {
-                        "Charset": self.CHARSET,
-                        "Data": opts["subject"],
-                },
-            },
-            Source=self.sender
-        )
+                Source=self.sender
+            )
+        
+        except self.client.exceptions.MessageRejected as e:
+            print(f"Email is not Verified. Details: {e}")
+            return None
+
 
     def get_success_template(self, content: str):
         return """
